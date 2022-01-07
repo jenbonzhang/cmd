@@ -1,17 +1,29 @@
-# github.com/denisenkom/go-mssqldb v0.0.0-20200206145737-bbfc9a55622e
+# github.com/denisenkom/go-mssqldb v0.10.0
 ## explicit
 github.com/denisenkom/go-mssqldb
 github.com/denisenkom/go-mssqldb/internal/cp
 github.com/denisenkom/go-mssqldb/internal/decimal
 github.com/denisenkom/go-mssqldb/internal/querytext
-# github.com/go-sql-driver/mysql v1.5.0
+# github.com/go-sql-driver/mysql v1.6.0
 ## explicit
 github.com/go-sql-driver/mysql
+# github.com/goccy/go-json v0.7.4
+github.com/goccy/go-json
+github.com/goccy/go-json/internal/decoder
+github.com/goccy/go-json/internal/encoder
+github.com/goccy/go-json/internal/encoder/vm
+github.com/goccy/go-json/internal/encoder/vm_color
+github.com/goccy/go-json/internal/encoder/vm_color_indent
+github.com/goccy/go-json/internal/encoder/vm_indent
+github.com/goccy/go-json/internal/errors
+github.com/goccy/go-json/internal/runtime
 # github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe
 github.com/golang-sql/civil
 # github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 github.com/golang/snappy
-# github.com/lib/pq v1.4.0
+# github.com/json-iterator/go v1.1.11
+github.com/json-iterator/go
+# github.com/lib/pq v1.10.2
 ## explicit
 github.com/lib/pq
 github.com/lib/pq/oid
@@ -22,6 +34,10 @@ github.com/lunny/log
 # github.com/mattn/go-sqlite3 v2.0.3+incompatible
 ## explicit
 github.com/mattn/go-sqlite3
+# github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+github.com/modern-go/concurrent
+# github.com/modern-go/reflect2 v1.0.1
+github.com/modern-go/reflect2
 # github.com/syndtr/goleveldb v1.0.0
 github.com/syndtr/goleveldb/leveldb
 github.com/syndtr/goleveldb/leveldb/cache
@@ -40,14 +56,14 @@ github.com/syndtr/goleveldb/leveldb/util
 github.com/ziutek/mymysql/godrv
 github.com/ziutek/mymysql/mysql
 github.com/ziutek/mymysql/native
-# golang.org/x/crypto v0.0.0-20190325154230-a5d413f7728c
+# golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 golang.org/x/crypto/md4
-# xorm.io/builder v0.3.7
+# xorm.io/builder v0.3.9
 xorm.io/builder
 # xorm.io/core v0.7.3
 ## explicit
 xorm.io/core
-# xorm.io/xorm v1.0.1
+# xorm.io/xorm v1.2.5
 ## explicit
 xorm.io/xorm
 xorm.io/xorm/caches

@@ -4,9 +4,7 @@
 
 Xorm is a simple and powerful ORM for Go.
 
-[![Build Status](https://drone.gitea.com/api/badges/xorm/xorm/status.svg)](https://drone.gitea.com/xorm/xorm) [![](http://gocover.io/_badge/xorm.io/xorm)](https://gocover.io/xorm.io/xorm)
-[![](https://goreportcard.com/badge/xorm.io/xorm)](https://goreportcard.com/report/xorm.io/xorm)
-[![Join the chat at https://img.shields.io/discord/323460943201959939.svg](https://img.shields.io/discord/323460943201959939.svg)](https://discord.gg/HuR2CF3)
+[![Build Status](https://drone.gitea.com/api/badges/xorm/xorm/status.svg)](https://drone.gitea.com/xorm/xorm) [![](http://gocover.io/_badge/xorm.io/xorm)](https://gocover.io/xorm.io/xorm) [![](https://goreportcard.com/badge/xorm.io/xorm)](https://goreportcard.com/report/xorm.io/xorm) [![Join the chat at https://img.shields.io/discord/323460943201959939.svg](https://img.shields.io/discord/323460943201959939.svg)](https://discord.gg/HuR2CF3)
 
 ## Notice
 
@@ -43,14 +41,17 @@ Drivers for Go's sql package which currently support database/sql includes:
 
 * [Postgres](https://github.com/postgres/postgres) / [Cockroach](https://github.com/cockroachdb/cockroach)
   - [github.com/lib/pq](https://github.com/lib/pq)
+  - [github.com/jackc/pgx](https://github.com/jackc/pgx)
 
 * [SQLite](https://sqlite.org)
   - [github.com/mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)
+  - [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) (windows unsupported)
 
 * MsSql
   - [github.com/denisenkom/go-mssqldb](https://github.com/denisenkom/go-mssqldb)
 
 * Oracle
+  - [github.com/godror/godror](https://github.com/godror/godror) (experiment)
   - [github.com/mattn/go-oci8](https://github.com/mattn/go-oci8) (experiment)
 
 ## Installation
@@ -66,6 +67,8 @@ Drivers for Go's sql package which currently support database/sql includes:
 ## Quick Start
 
 * Create Engine
+
+Firstly, we should new an engine for a database.
 
 ```Go
 engine, err := xorm.NewEngine(driverName, dataSourceName)
@@ -245,35 +248,38 @@ for rows.Next() {
 
 ```Go
 affected, err := engine.ID(1).Update(&user)
-// UPDATE user SET ... Where id = ?
+// UPDATE user SET ... WHERE id = ?
 
 affected, err := engine.Update(&user, &User{Name:name})
-// UPDATE user SET ... Where name = ?
+// UPDATE user SET ... WHERE name = ?
 
 var ids = []int64{1, 2, 3}
 affected, err := engine.In("id", ids).Update(&user)
-// UPDATE user SET ... Where id IN (?, ?, ?)
+// UPDATE user SET ... WHERE id IN (?, ?, ?)
 
 // force update indicated columns by Cols
 affected, err := engine.ID(1).Cols("age").Update(&User{Name:name, Age: 12})
-// UPDATE user SET age = ?, updated=? Where id = ?
+// UPDATE user SET age = ?, updated=? WHERE id = ?
 
 // force NOT update indicated columns by Omit
 affected, err := engine.ID(1).Omit("name").Update(&User{Name:name, Age: 12})
-// UPDATE user SET age = ?, updated=? Where id = ?
+// UPDATE user SET age = ?, updated=? WHERE id = ?
 
 affected, err := engine.ID(1).AllCols().Update(&user)
-// UPDATE user SET name=?,age=?,salt=?,passwd=?,updated=? Where id = ?
+// UPDATE user SET name=?,age=?,salt=?,passwd=?,updated=? WHERE id = ?
 ```
 
 * `Delete` delete one or more records, Delete MUST have condition
 
 ```Go
 affected, err := engine.Where(...).Delete(&user)
-// DELETE FROM user Where ...
+// DELETE FROM user WHERE ...
 
 affected, err := engine.ID(2).Delete(&user)
-// DELETE FROM user Where id = ?
+// DELETE FROM user WHERE id = ?
+
+affected, err := engine.Table("user").Where(...).Delete()
+// DELETE FROM user WHERE ...
 ```
 
 * `Count` count records
@@ -313,7 +319,7 @@ err := engine.Where(builder.NotIn("a", 1, 2).And(builder.In("b", "c", "d", "e"))
 // SELECT id, name ... FROM user WHERE a NOT IN (?, ?) AND b IN (?, ?, ?)
 ```
 
-* Multiple operations in one go routine, no transation here but resue session memory
+* Multiple operations in one go routine, no transaction here but resue session memory
 
 ```Go
 session := engine.NewSession()
@@ -336,7 +342,7 @@ if _, err := session.Exec("delete from userinfo where username = ?", user2.Usern
 return nil
 ```
 
-* Transation should be on one go routine. There is transaction and resue session memory
+* Transaction should be on one go routine. There is transaction and resue session memory
 
 ```Go
 session := engine.NewSession()
@@ -418,7 +424,7 @@ res, err := engine.Transaction(func(session *xorm.Session) (interface{}, error) 
 
 ## Contributing
 
-If you want to pull request, please see [CONTRIBUTING](https://gitea.com/xorm/xorm/src/branch/master/CONTRIBUTING.md). And we also provide [Xorm on Google Groups](https://groups.google.com/forum/#!forum/xorm) to discuss.
+If you want to pull request, please see [CONTRIBUTING](https://gitea.com/xorm/xorm/src/branch/master/CONTRIBUTING.md). And you can also go to [Xorm on discourse](https://xorm.discourse.group) to discuss.
 
 ## Credits
 

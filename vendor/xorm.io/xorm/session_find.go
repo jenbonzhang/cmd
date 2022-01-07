@@ -6,11 +6,11 @@ package xorm
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 
 	"xorm.io/builder"
 	"xorm.io/xorm/caches"
+	"xorm.io/xorm/convert"
 	"xorm.io/xorm/internal/statements"
 	"xorm.io/xorm/internal/utils"
 	"xorm.io/xorm/schemas"
@@ -57,8 +57,17 @@ func (session *Session) FindAndCount(rowsSlicePtr interface{}, condiBean ...inte
 	if session.statement.SelectStr != "" {
 		session.statement.SelectStr = ""
 	}
+	if len(session.statement.ColumnMap) > 0 {
+		session.statement.ColumnMap = []string{}
+	}
 	if session.statement.OrderStr != "" {
 		session.statement.OrderStr = ""
+	}
+	if session.statement.LimitN != nil {
+		session.statement.LimitN = nil
+	}
+	if session.statement.Start > 0 {
+		session.statement.Start = 0
 	}
 
 	// session has stored the conditions so we use `unscoped` to avoid duplicated condition.
@@ -108,8 +117,11 @@ func (session *Session) find(rowsSlicePtr interface{}, condiBean ...interface{})
 	)
 	if tp == tpStruct {
 		if !session.statement.NoAutoCondition && len(condiBean) > 0 {
-			var err error
-			autoCond, err = session.statement.BuildConds(table, condiBean[0], true, true, false, true, addedTableName)
+			condTable, err := session.engine.tagParser.Parse(reflect.ValueOf(condiBean[0]))
+			if err != nil {
+				return err
+			}
+			autoCond, err = session.statement.BuildConds(condTable, condiBean[0], true, true, false, true, addedTableName)
 			if err != nil {
 				return err
 			}
@@ -149,6 +161,16 @@ func (session *Session) find(rowsSlicePtr interface{}, condiBean ...interface{})
 }
 
 func (session *Session) noCacheFind(table *schemas.Table, containerValue reflect.Value, sqlStr string, args ...interface{}) error {
+	elemType := containerValue.Type().Elem()
+	var isPointer bool
+	if elemType.Kind() == reflect.Ptr {
+		isPointer = true
+		elemType = elemType.Elem()
+	}
+	if elemType.Kind() == reflect.Ptr {
+		return errors.New("pointer to pointer is not supported")
+	}
+
 	rows, err := session.queryRows(sqlStr, args...)
 	if err != nil {
 		return err
@@ -160,31 +182,13 @@ func (session *Session) noCacheFind(table *schemas.Table, containerValue reflect
 		return err
 	}
 
-	var newElemFunc func(fields []string) reflect.Value
-	elemType := containerValue.Type().Elem()
-	var isPointer bool
-	if elemType.Kind() == reflect.Ptr {
-		isPointer = true
-		elemType = elemType.Elem()
-	}
-	if elemType.Kind() == reflect.Ptr {
-		return errors.New("pointer to pointer is not supported")
+	types, err := rows.ColumnTypes()
+	if err != nil {
+		return err
 	}
 
-	newElemFunc = func(fields []string) reflect.Value {
-		switch elemType.Kind() {
-		case reflect.Slice:
-			slice := reflect.MakeSlice(elemType, len(fields), len(fields))
-			x := reflect.New(slice.Type())
-			x.Elem().Set(slice)
-			return x
-		case reflect.Map:
-			mp := reflect.MakeMap(elemType)
-			x := reflect.New(mp.Type())
-			x.Elem().Set(mp)
-			return x
-		}
-		return reflect.New(elemType)
+	var newElemFunc = func(fields []string) reflect.Value {
+		return utils.New(elemType, len(fields), len(fields))
 	}
 
 	var containerValueSetFunc func(*reflect.Value, schemas.PK) error
@@ -209,10 +213,15 @@ func (session *Session) noCacheFind(table *schemas.Table, containerValue reflect
 
 		containerValueSetFunc = func(newValue *reflect.Value, pk schemas.PK) error {
 			keyValue := reflect.New(keyType)
-			err := convertPKToValue(table, keyValue.Interface(), pk)
-			if err != nil {
-				return err
+			cols := table.PKColumns()
+			if len(cols) == 1 {
+				if err := convert.AssignValue(keyValue, pk[0]); err != nil {
+					return err
+				}
+			} else {
+				keyValue.Set(reflect.ValueOf(&pk))
 			}
+
 			if isPointer {
 				containerValue.SetMapIndex(keyValue.Elem(), newValue.Elem().Addr())
 			} else {
@@ -224,12 +233,11 @@ func (session *Session) noCacheFind(table *schemas.Table, containerValue reflect
 
 	if elemType.Kind() == reflect.Struct {
 		var newValue = newElemFunc(fields)
-		dataStruct := utils.ReflectValue(newValue.Interface())
-		tb, err := session.engine.tagParser.ParseWithCache(dataStruct)
+		tb, err := session.engine.tagParser.ParseWithCache(newValue)
 		if err != nil {
 			return err
 		}
-		err = session.rows2Beans(rows, fields, tb, newElemFunc, containerValueSetFunc)
+		err = session.rows2Beans(rows, fields, types, tb, newElemFunc, containerValueSetFunc)
 		rows.Close()
 		if err != nil {
 			return err
@@ -249,7 +257,6 @@ func (session *Session) noCacheFind(table *schemas.Table, containerValue reflect
 		default:
 			err = rows.Scan(bean)
 		}
-
 		if err != nil {
 			return err
 		}
@@ -258,17 +265,7 @@ func (session *Session) noCacheFind(table *schemas.Table, containerValue reflect
 			return err
 		}
 	}
-	return nil
-}
-
-func convertPKToValue(table *schemas.Table, dst interface{}, pk schemas.PK) error {
-	cols := table.PKColumns()
-	if len(cols) == 1 {
-		return convertAssign(dst, pk[0])
-	}
-
-	dst = pk
-	return nil
+	return rows.Err()
 }
 
 func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr interface{}, args ...interface{}) (err error) {
@@ -317,13 +314,16 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 			}
 			var pk schemas.PK = make([]interface{}, len(table.PrimaryKeys))
 			for i, col := range table.PKColumns() {
-				pk[i], err = session.engine.idTypeAssertion(col, res[i])
+				pk[i], err = col.ConvertID(res[i])
 				if err != nil {
 					return err
 				}
 			}
 
 			ids = append(ids, pk)
+		}
+		if rows.Err() != nil {
+			return rows.Err()
 		}
 
 		session.engine.logger.Debugf("[cache] cache sql: %v, %v, %v, %v, %v", ids, tableName, sqlStr, newsql, args)
@@ -367,7 +367,7 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 		} else {
 			session.engine.logger.Debugf("[cache] cache hit bean: %v, %v, %v", tableName, id, bean)
 
-			pk, err := session.engine.IDOf(bean)
+			pk, err := table.IDOfV(reflect.ValueOf(bean))
 			if err != nil {
 				return err
 			}
@@ -416,7 +416,6 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 		if err != nil {
 			return err
 		}
-
 		session.statement = statement
 
 		vs := reflect.Indirect(reflect.ValueOf(beans))
@@ -425,7 +424,7 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 			if rv.Kind() != reflect.Ptr {
 				rv = rv.Addr()
 			}
-			id, err := session.engine.idOfV(rv)
+			id, err := table.IDOfV(rv)
 			if err != nil {
 				return err
 			}
@@ -457,12 +456,13 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 		} else if sliceValue.Kind() == reflect.Map {
 			var key = ids[j]
 			keyType := sliceValue.Type().Key()
+			keyValue := reflect.New(keyType)
 			var ikey interface{}
 			if len(key) == 1 {
-				ikey, err = str2PK(fmt.Sprintf("%v", key[0]), keyType)
-				if err != nil {
+				if err := convert.AssignValue(keyValue, key[0]); err != nil {
 					return err
 				}
+				ikey = keyValue.Elem().Interface()
 			} else {
 				if keyType.Kind() != reflect.Slice {
 					return errors.New("table have multiple primary keys, key is not schemas.PK or slice")

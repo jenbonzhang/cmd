@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"math/big"
 	"reflect"
 	"time"
 
@@ -19,15 +20,22 @@ import (
 
 var (
 	nullFloatType = reflect.TypeOf(sql.NullFloat64{})
+	bigFloatType  = reflect.TypeOf(big.Float{})
 )
 
-// Value2Interface convert a field value of a struct to interface for puting into database
+// Value2Interface convert a field value of a struct to interface for putting into database
 func (statement *Statement) Value2Interface(col *schemas.Column, fieldValue reflect.Value) (interface{}, error) {
 	if fieldValue.CanAddr() {
 		if fieldConvert, ok := fieldValue.Addr().Interface().(convert.Conversion); ok {
 			data, err := fieldConvert.ToDB()
 			if err != nil {
 				return nil, err
+			}
+			if data == nil {
+				if col.Nullable {
+					return nil, nil
+				}
+				data = []byte{}
 			}
 			if col.SQLType.IsBlob() {
 				return data, nil
@@ -36,18 +44,24 @@ func (statement *Statement) Value2Interface(col *schemas.Column, fieldValue refl
 		}
 	}
 
-	if fieldConvert, ok := fieldValue.Interface().(convert.Conversion); ok {
-		data, err := fieldConvert.ToDB()
-		if err != nil {
-			return nil, err
+	isNil := fieldValue.Kind() == reflect.Ptr && fieldValue.IsNil()
+	if !isNil {
+		if fieldConvert, ok := fieldValue.Interface().(convert.Conversion); ok {
+			data, err := fieldConvert.ToDB()
+			if err != nil {
+				return nil, err
+			}
+			if data == nil {
+				if col.Nullable {
+					return nil, nil
+				}
+				data = []byte{}
+			}
+			if col.SQLType.IsBlob() {
+				return data, nil
+			}
+			return string(data), nil
 		}
-		if col.SQLType.IsBlob() {
-			return data, nil
-		}
-		if nil == data {
-			return nil, nil
-		}
-		return string(data), nil
 	}
 
 	fieldType := fieldValue.Type()
@@ -73,17 +87,20 @@ func (statement *Statement) Value2Interface(col *schemas.Column, fieldValue refl
 	case reflect.Struct:
 		if fieldType.ConvertibleTo(schemas.TimeType) {
 			t := fieldValue.Convert(schemas.TimeType).Interface().(time.Time)
-			tf := dialects.FormatColumnTime(statement.dialect, statement.defaultTimeZone, col, t)
-			return tf, nil
+			tf, err := dialects.FormatColumnTime(statement.dialect, statement.defaultTimeZone, col, t)
+			return tf, err
 		} else if fieldType.ConvertibleTo(nullFloatType) {
 			t := fieldValue.Convert(nullFloatType).Interface().(sql.NullFloat64)
 			if !t.Valid {
 				return nil, nil
 			}
 			return t.Float64, nil
+		} else if fieldType.ConvertibleTo(bigFloatType) {
+			t := fieldValue.Convert(bigFloatType).Interface().(big.Float)
+			return t.String(), nil
 		}
 
-		if !col.SQLType.IsJson() {
+		if !col.IsJSON {
 			// !<winxxp>! 增加支持driver.Valuer接口的结构，如sql.NullString
 			if v, ok := fieldValue.Interface().(driver.Valuer); ok {
 				return v.Value()
@@ -147,7 +164,7 @@ func (statement *Statement) Value2Interface(col *schemas.Column, fieldValue refl
 		}
 		return nil, ErrUnSupportedType
 	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint:
-		return int64(fieldValue.Uint()), nil
+		return fieldValue.Uint(), nil
 	default:
 		return fieldValue.Interface(), nil
 	}
