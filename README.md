@@ -103,3 +103,6 @@ List all supported drivers since default build will not include sqlite3.
 
  BSD License
  [http://creativecommons.org/licenses/BSD/](http://creativecommons.org/licenses/BSD/)
+
+##　运行方法
+	@./run  reverse postgres "host=127.0.0.0 user=root password= dbname=pallas_db port=5432 sslmode=disable"  xorm/templates/deepglint ./entity

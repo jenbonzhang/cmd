@@ -1194,10 +1194,16 @@ WHERE n.nspname= s.table_schema AND c.relkind = 'r'::char AND c.relname = $1%s A
 func (db *postgres) GetTables(queryer core.Queryer, ctx context.Context) ([]*schemas.Table, error) {
 	args := []interface{}{}
 	s := "SELECT tablename FROM pg_tables"
+	s = `SELECT tb.table_name as tablename, d.description as description
+FROM information_schema.tables tb
+         JOIN pg_class c ON c.relname = tb.table_name
+         LEFT JOIN pg_description d ON d.objoid = c.oid AND d.objsubid = '0'
+-- WHERE tb.table_schema = 'public' 
+`
 	schema := db.getSchema()
 	if schema != "" {
 		args = append(args, schema)
-		s = s + " WHERE schemaname = $1"
+		s = s + " WHERE tb.table_schema = $1"
 	}
 
 	rows, err := queryer.QueryContext(ctx, s, args...)
@@ -1210,11 +1216,13 @@ func (db *postgres) GetTables(queryer core.Queryer, ctx context.Context) ([]*sch
 	for rows.Next() {
 		table := schemas.NewEmptyTable()
 		var name string
-		err = rows.Scan(&name)
+		var description string
+		err = rows.Scan(&name, &description)
 		if err != nil {
 			return nil, err
 		}
 		table.Name = name
+		table.Comment = description
 		tables = append(tables, table)
 	}
 	if rows.Err() != nil {

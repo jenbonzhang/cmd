@@ -1,6 +1,7 @@
 lang=go
-genJson=0
-ignoreColumnsJSON=1
+genJson=1
+xormAddFieldName=1
+ignoreColumnsJSON=0
 created=
 updated=
 deleted=

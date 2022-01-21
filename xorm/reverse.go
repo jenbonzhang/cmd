@@ -51,7 +51,7 @@ func init() {
 }
 
 var (
-	genJson                                      bool     = false
+	genJson, xormAddFieldName                    bool     = false, false
 	ignoreColumnsJSON, created, updated, deleted []string = []string{}, []string{"created_at"}, []string{"updated_at"}, []string{"deleted_at"}
 )
 
@@ -140,6 +140,7 @@ func runReverse(cmd *Command, args []string) {
 	var ok bool
 	var lang string = "go"
 	var prefix string = "" //[SWH|+]
+	var tableNameLower bool
 
 	cfgPath := path.Join(dir, "config")
 	info, err := os.Stat(cfgPath)
@@ -153,6 +154,9 @@ func runReverse(cmd *Command, args []string) {
 			genJson, err = strconv.ParseBool(j)
 		}
 
+		if j, ok := configs["xormAddFieldName"]; ok {
+			xormAddFieldName, err = strconv.ParseBool(j)
+		}
 		//[SWH|+]
 		if j, ok := configs["prefix"]; ok {
 			prefix = j
@@ -172,6 +176,9 @@ func runReverse(cmd *Command, args []string) {
 
 		if j, ok := configs["deleted"]; ok {
 			deleted = strings.Split(j, ",")
+		}
+		if _, ok := configs["tableNameLower"]; ok {
+			tableNameLower = ok
 		}
 
 	}
@@ -235,7 +242,6 @@ func runReverse(cmd *Command, args []string) {
 		fileName := info.Name()
 		newFileName := fileName[:len(fileName)-4]
 		ext := path.Ext(newFileName)
-
 		if !isMultiFile {
 			w, err = os.Create(path.Join(genDir, newFileName))
 			if err != nil {
@@ -291,7 +297,11 @@ func runReverse(cmd *Command, args []string) {
 				tbs := []*schemas.Table{table}
 				imports := langTmpl.GenImports(tbs)
 
-				w, err := os.Create(path.Join(genDir, table.Name+ext))
+				fileName := table.Name
+				if tableNameLower {
+					fileName = strings.ToLower(fileName)
+				}
+				w, err := os.Create(path.Join(genDir, fileName+ext))
 				if err != nil {
 					log.Errorf("%v", err)
 					return err

@@ -27,6 +27,7 @@ var (
 			"gt":         gt,
 			"getCol":     getCol,
 			"UpperTitle": upTitle,
+			"low":        low,
 		},
 		formatGo,
 		genGoImports,
@@ -206,6 +207,9 @@ func tag(table *schemas.Table, col *schemas.Column) string {
 	isIdPk := isNameId && typestring(col) == "int64"
 
 	var res []string
+	if xormAddFieldName {
+		res = append(res, col.Name)
+	}
 	if !col.Nullable {
 		if !isIdPk {
 			res = append(res, "not null")
@@ -302,7 +306,7 @@ func tag(table *schemas.Table, col *schemas.Column) string {
 		if include(ignoreColumnsJSON, col.Name) {
 			tags = append(tags, "json:\"-\"")
 		} else {
-			tags = append(tags, "json:\""+col.Name+"\"")
+			tags = append(tags, "json:\""+strings.ToLower(col.Name)+"\"")
 		}
 	}
 	if len(res) > 0 {

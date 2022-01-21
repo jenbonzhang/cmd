@@ -64,3 +64,10 @@ func upTitle(src string) string {
 
 	return strings.ToUpper(src)
 }
+func low(src string) string {
+	if src == "" {
+		return ""
+	}
+
+	return strings.ToLower(src)
+}
